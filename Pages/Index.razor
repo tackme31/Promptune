@@ -1,0 +1,247 @@
+﻿@page "/"
+@using Promptune.Models
+@using ElectronNET.API.Entities
+@inject Promptune.Services.PromptService PromptService
+@inject Promptune.Services.FileExportService FileExportService
+
+<Layout style="height: 100%;">
+    <Content Style="padding: 20px">
+    @if (_confirmed)
+    {
+        <div>Total prompts: @_results.Count, Total tokens: @_results.Sum(result => result.RequestTokens ?? 0)</div>
+        <Progress Percent=@_progress ShowInfo=false/>
+        <Divider Style="margin: 12px 0;" />
+        foreach (var parameter in _results)
+        {
+            <div style="margin-top: 0.5rem;">
+                <ChatResultItem
+                    @key=parameter.No
+                    Parameter=parameter
+                    OnClickStatus=@(async () => await Rerun(parameter))
+                />
+            </div>
+        }
+    }
+    else
+    {
+        <ChatSettings
+            @bind-Models=@_models
+            @bind-Temperature=@_temperature
+            @bind-TopP=@_topP
+            @bind-MaxTokens=@_maxTokens
+            @bind-BatchCount=@_batchCount
+            @bind-BatchSize=@_batchSize
+            @bind-Timeout=@_timeout
+            @bind-SystemMessage=@_systemMessage
+            @bind-Prompts=@_prompts
+        />
+    }
+    </Content>
+    <Footer>
+        @if (_confirmed)
+        {
+            <Button
+                Type=@ButtonType.Primary
+                Icon=@IconType.Outline.LeftCircle
+                Size=@ButtonSize.Large
+                Disabled=@_running
+                @onclick=@(() => _confirmed = false)
+            >
+                Back
+            </Button>
+            <Button
+                Type=@ButtonType.Primary
+                Icon=@IconType.Outline.PlayCircle
+                Size=@ButtonSize.Large
+                Disabled=@_running
+                @onclick="Run"
+            >
+                Run
+            </Button>
+            <Button
+                Type=@ButtonType.Primary
+                Icon=@IconType.Outline.Export
+                Size=@ButtonSize.Large
+                Disabled=@(_progress < 100d)
+                @onclick="Export"
+            >
+                Export
+            </Button>
+        }
+        else
+        {
+            <Button
+                Type=@ButtonType.Primary
+                Icon=@IconType.Outline.Import
+                Size=@ButtonSize.Large
+                @onclick="Import"
+            >
+                Import
+            </Button>
+            <Button
+                Type=@ButtonType.Primary
+                Icon=@IconType.Outline.RightCircle
+                Size=@ButtonSize.Large
+                Disabled=@(!_canConfirm)
+                @onclick=@(async () =>
+                {
+                    var options = CreateOptions();
+                    _results = await PromptService.CreateChatParameters(options);
+                    _confirmed = true;
+                })
+            >
+                Confirm
+            </Button>
+        }
+    </Footer>
+</Layout>
+@code {
+    private string _models { get; set; } = "gpt35";
+    private float _temperature { get; set; } = 0.5f;
+    private float _topP { get; set; } = 0.5f;
+    private int _batchCount { get; set; } = 1;
+    private int _batchSize { get; set; } = 20;
+    private int _maxTokens { get; set; } = 500;
+    private int _timeout { get; set; } = 30 * 1000;
+    private string _systemMessage { get; set; } = "あなたは情報を見つけるのを助けるAIアシスタントです。";
+    private bool _confirmed { get; set; }
+    private bool _running { get; set; }
+    private List<PromptPattern> _prompts { get; set; } = new List<PromptPattern>
+    {
+        new PromptPattern
+        {
+            Format = "日本の首都はどこですか？",
+        }
+    };
+    private List<ChatParameter> _results { get; set; } = new();
+
+    private bool _canConfirm =>
+        !string.IsNullOrWhiteSpace(_models) &&
+        _prompts.Any(p => !string.IsNullOrWhiteSpace(p.Format));
+    private double _progress => (double)_results.Count(r => r.Status is "success" or "error") / _results.Count * 100;
+
+    private PromptOptions CreateOptions()
+    {
+        return new PromptOptions
+        {
+            BatchCount = _batchCount,
+            Temperature = _temperature,
+            TopP = _topP,
+            Models = _models.Split(',').Where(m => !string.IsNullOrWhiteSpace(m)).ToArray(),
+            MaxTokens = _maxTokens,
+            PromptPatterns = _prompts
+                .Where(p => !string.IsNullOrWhiteSpace(p.Format))
+                .Select(p => new PromptPattern
+                {
+                    Format = p.Format,
+                    SystemMessages = new [] { _systemMessage },
+                }).ToArray()
+        };
+    }
+
+    private async Task Rerun(ChatParameter parameter)
+    {
+        if (parameter.Status is "waiting" or "executing")
+        {
+            return;
+        }
+
+        _running = true;
+
+        await RunPrompt(parameter);
+
+        _running = false;
+    }
+
+    private async Task Run()
+    {
+        _running = true;
+
+        var batches = _results
+            .Select((result, index) => (result, index))
+            .GroupBy(item => item.index / _batchSize);
+        foreach (var batch in batches)
+        {
+            var tasks = new List<Task>();
+            foreach (var (result, _) in batch)
+            {
+                var task = RunPrompt(result);
+                tasks.Add(task);
+            }
+
+            await Task.WhenAll(tasks); 
+        }
+
+        _running = false;
+    }
+
+    private async Task RunPrompt(ChatParameter parameter)
+    {
+        parameter.Status = "executing";
+
+        var sw = new System.Diagnostics.Stopwatch();
+        sw.Start();
+        var result = await PromptService.GetChatCompletions(parameter, _timeout);
+        sw.Stop();
+
+        parameter.Result = result;
+        parameter.ResponseTokens = await PromptService.GetTokenCount(parameter.Result);
+        parameter.ExecutionTime = sw.Elapsed;
+        parameter.Status = result == null ? "error" : "success";
+
+        this.StateHasChanged();
+    }
+
+    private async Task Export()
+    {
+        var window = Electron.WindowManager.BrowserWindows.First();
+        var path = await Electron.Dialog.ShowSaveDialogAsync(window, new SaveDialogOptions
+        {
+            Filters = new []
+            {
+                new FileFilter
+                {
+                    Extensions = new [] { "csv"},
+                    Name = "*"
+                }
+            },
+        });
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        await FileExportService.ExportChatResult(_results, path);
+    }
+
+    private async Task Import()
+    {
+        var window = Electron.WindowManager.BrowserWindows.First();
+        var path = await Electron.Dialog.ShowOpenDialogAsync(window, new OpenDialogOptions
+        {
+            Filters = new []
+            {
+                new FileFilter
+                {
+                    Extensions = new [] { "csv"},
+                    Name = "*"
+                }
+            },
+        });
+        if (!path.Any())
+        {
+            return;
+        }
+
+        
+        var importPrompts = await FileExportService.ImportPrompts(path[0]);
+        _prompts.Clear();
+        foreach (var prompt in importPrompts)
+        {
+            _prompts.Add(new PromptPattern
+            {
+                Format = prompt
+            });
+        }
+    }
+}

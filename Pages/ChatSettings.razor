@@ -1,0 +1,191 @@
+@using Promptune.Models
+
+<GridRow Gutter="(16, 16)" Style="margin-bottom: 0.5rem;">
+    <GridCol Span="6">
+        <Text>Models</Text>
+        <Input
+            Placeholder="gpt35,gpt4"
+            Value=@Models
+            @oninput=@(async (args) =>
+            {
+                Models = args.Value?.ToString() ?? string.Empty;
+                await ModelsChanged.InvokeAsync(Models);
+            })
+        />
+    </GridCol>
+    <GridCol Span="6">
+        <Text>Temperature</Text>
+        <Input
+            Type="number"
+            Min=0
+            Max=1
+            Step=0.1
+            Value=@Temperature
+            @oninput=@(async (args) =>
+            {
+                Temperature = float.TryParse(args.Value?.ToString(), out var value) ? value : 0.1f;
+                await TemperatureChanged.InvokeAsync(Temperature);
+            })
+        />
+    </GridCol>
+    <GridCol Span="6">
+        <Text>Top P</Text>
+        <Input
+            Type="number"
+            Min=0
+            Max=1
+            Step=0.1
+            Value=@TopP
+            @oninput=@(async (args) =>
+            {
+                TopP = float.TryParse(args.Value?.ToString(), out var value) ? value : 0.1f;
+                await TopPChanged.InvokeAsync(TopP);
+            })
+        />
+    </GridCol>
+    <GridCol Span="6">
+        <Text>Max tokens</Text>
+        <Input
+            Type="number"
+            Min=50
+            Value=@MaxTokens
+            Step=50
+            @oninput=@(async (args) =>
+            {
+                MaxTokens = int.TryParse(args.Value?.ToString(), out var value) ? value : 50;
+                await MaxTokensChanged.InvokeAsync(MaxTokens);
+            })
+        />
+    </GridCol>
+</GridRow>
+<GridRow Gutter="(16, 16)" Style="margin-bottom: 0.5rem;">
+    <GridCol Span="6">
+        <Text>Batch count</Text>
+        <Input
+            Type="number"
+            Min=1
+            Value=@BatchCount
+            @oninput=@(async (args) =>
+            {
+                BatchCount = int.TryParse(args.Value?.ToString(), out var value) ? value : 1;
+                await BatchCountChanged.InvokeAsync(BatchCount);
+            })
+        />
+    </GridCol>
+    <GridCol Span="6">
+        <Text>Batch size</Text>
+        <Input
+            Type="number"
+            Min=1
+            Value=@BatchSize
+            @oninput=@(async (args) =>
+            {
+                BatchSize = int.TryParse(args.Value?.ToString(), out var value) ? value : 1;
+                await BatchSizeChanged.InvokeAsync(BatchSize);
+            })
+        />
+    </GridCol>
+    <GridCol Span="6">
+        <Text>Timeout (msec)</Text>
+        <Input
+            Type="number"
+            Min=1000
+            Step=1000
+            Value=@Timeout
+            @oninput=@(async (args) =>
+            {
+                Timeout = int.TryParse(args.Value?.ToString(), out var value) ? value : 1000;
+                await TimeoutChanged.InvokeAsync(Timeout);
+            })
+        />
+    </GridCol>
+</GridRow>
+<GridRow Gutter="(16, 16)" Style="margin-bottom: 0.5rem;">
+    <GridCol Span="24">
+        <Text>System message</Text>
+        <TextArea
+            Rows=1
+            Value=@SystemMessage
+            @oninput=@(async (args) =>
+            {
+                SystemMessage = args.Value?.ToString() ?? string.Empty;
+                await SystemMessageChanged.InvokeAsync(SystemMessage);
+            })
+        />
+    </GridCol>
+</GridRow>
+<Text>Prompts</Text>
+@for (var i = 0; i < Prompts.Count; i++)
+{
+    var index = i;
+    <GridRow Gutter="(16, 16)" @key=i>
+        <GridCol Span="24">
+            <TextArea
+                OnChange=@((v) => HandleChangePrompt(v, index))
+                Value=@Prompts[index].Format
+                Style="margin-bottom: 0.5rem"
+            />
+        </GridCol>
+    </GridRow>
+}
+<GridRow Gutter="(16, 16)">
+    <GridCol Span="24">
+        <Button Icon=@IconType.Outline.Plus @onclick="AddPromptPattern"/>
+    </GridCol>
+</GridRow>
+
+@code {
+    [Parameter]
+    public string Models { get; set; } = string.Empty;
+    [Parameter]
+    public float Temperature { get; set; } = 0.5f;
+    [Parameter]
+    public float TopP { get; set; } = 0.5f;
+    [Parameter]
+    public int MaxTokens { get; set; } = 500;
+    [Parameter]
+    public int BatchCount { get; set; } = 1;
+    [Parameter]
+    public int BatchSize { get; set; } = 20;
+    [Parameter]
+    public int Timeout { get; set; } = 30 * 1000;
+    [Parameter]
+    public string SystemMessage { get; set; } = string.Empty;
+    [Parameter]
+    public List<PromptPattern> Prompts { get; set; } = new List<PromptPattern>();
+
+    [Parameter]
+    public EventCallback<string> ModelsChanged { get; set; }
+    [Parameter]
+    public EventCallback<float> TemperatureChanged { get; set; }
+    [Parameter]
+    public EventCallback<float> TopPChanged { get; set; }
+    [Parameter]
+    public EventCallback<int> MaxTokensChanged { get; set; }
+    [Parameter]
+    public EventCallback<int> BatchCountChanged { get; set; }
+    [Parameter]
+    public EventCallback<int> BatchSizeChanged { get; set; }    
+    [Parameter]
+    public EventCallback<int> TimeoutChanged { get; set; }        
+    [Parameter]
+    public EventCallback<string> SystemMessageChanged { get; set; }
+    [Parameter]
+    public EventCallback<List<PromptPattern>> PromptsChanged { get; set; }    
+    
+
+    private async Task HandleChangePrompt(string value, int i)
+    {
+        Prompts[i].Format = value;
+        await PromptsChanged.InvokeAsync(Prompts);
+    }
+
+    private async Task AddPromptPattern()
+    {
+        Prompts.Add(new PromptPattern
+        {
+            Format = string.Empty,
+        });
+        await PromptsChanged.InvokeAsync(Prompts);
+    }
+}

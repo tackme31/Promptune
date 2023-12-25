@@ -1,0 +1,59 @@
+@using Promptune.Models
+@using System.Text.RegularExpressions
+@using System.Web
+
+<Collapse>
+    <Panel>
+        <HeaderTemplate>
+            @((MarkupString)Regex.Replace(HttpUtility.HtmlEncode(@Parameter?.UserMessage ?? string.Empty), "\r?\n|\r", "<br/>"))
+        </HeaderTemplate>
+        <ExtraTemplate>
+            <div @onclick=OnClickStatus @onclick:stopPropagation>
+                @if (Parameter?.Status == "waiting")
+                {
+                    <Icon Type="pause-circle" Theme="fill" Style="font-size: 20px; color: gray;"/>
+                }
+                else if (Parameter?.Status == "executing")
+                {
+                    <Icon Type="loading" Theme="outline" Style="font-size: 20px; color: gray;"/>
+                }
+                else if (Parameter?.Status == "success")
+                {
+                    <Icon Type="check-circle" Theme="fill" Style="font-size: 20px; color: green;"/>
+                }
+                else if (Parameter?.Status == "error")
+                {
+                    <Icon Type="close-circle" Theme="fill" Style="font-size: 20px; color: red;"/>
+                }
+            </div>
+        </ExtraTemplate>
+        <ChildContent>
+            <Descriptions Bordered Size="@DescriptionsSize.Small">
+                <DescriptionsItem Title="Model">@Parameter?.Model</DescriptionsItem>
+                <DescriptionsItem Title="Request tokens">@Parameter?.RequestTokens</DescriptionsItem>
+                <DescriptionsItem Title="Response tokens">@Parameter?.ResponseTokens</DescriptionsItem>
+                <DescriptionsItem Title="System message" Span="3">
+                    @((MarkupString)Regex.Replace(HttpUtility.HtmlEncode(@Parameter?.SystemMessage ?? string.Empty), "\r?\n|\r", "<br/>"))
+                </DescriptionsItem>
+                <DescriptionsItem Title="Execution time" Span="3">
+                    @if (Parameter?.ExecutionTime is not null)
+                    {
+                        @Parameter?.ExecutionTime?.TotalSeconds <span>sec</span>
+                    }
+                </DescriptionsItem>
+                <DescriptionsItem Title="Result" Span="3">
+                    @((MarkupString)Regex.Replace(HttpUtility.HtmlEncode(@Parameter?.Result ?? string.Empty), "\r?\n|\r", "<br/>"))
+                </DescriptionsItem>
+            </Descriptions>
+        </ChildContent>
+    </Panel>
+</Collapse>
+
+@code {
+    [Parameter]
+    public ChatParameter? Parameter { get; set; }
+
+    [Parameter]
+    public EventCallback OnClickStatus { get; set; }
+}
+

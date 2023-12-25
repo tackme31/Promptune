@@ -1,0 +1,25 @@
+﻿<Menu
+    Theme=MenuTheme.Dark
+    DefaultSelectedKeys=@(new [] { "1" })
+>
+    <MenuItem Key="1">
+        <IconTemplate>
+            <Icon Type="message" Theme="outline" Style="font-size: 18px"/>
+        </IconTemplate>
+        <ChildContent>
+            <NavLink href="" Match="NavLinkMatch.All">
+                Chat
+            </NavLink>
+        </ChildContent>
+    </MenuItem>
+    <MenuItem Key="2">
+        <IconTemplate>
+            <Icon Type="setting" Theme="outline" Style="font-size: 18px"/>
+        </IconTemplate>
+        <ChildContent>
+            <NavLink href="settings">
+                Settings
+            </NavLink>
+        </ChildContent>
+    </MenuItem>
+</Menu>

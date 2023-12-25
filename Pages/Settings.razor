@@ -1,0 +1,64 @@
+﻿@page "/settings"
+@using ElectronNET.API.Entities
+@inject Promptune.Services.SecretKeyService SecretKeyService
+@inject IMessageService _message
+
+<Layout style="height: 100%;">
+    <Content Style="padding: 20px">
+        @if (endpoint == null || key == null)
+        {
+            <Icon Type="loading" Theme="outline"/>
+        }
+        else
+        {
+            <div style="margin-bottom: 20px">
+                Endpoint:
+                <Input Size="@InputSize.Large" @bind-Value="@endpoint" />
+            </div>
+            <div style="margin-bottom: 20px">
+                Key:
+                <Input Size="@InputSize.Large" @bind-Value="@key" />
+            </div>
+        }
+    </Content>
+    <Footer>
+        <Button
+            Type="@ButtonType.Primary"
+            Icon="@IconType.Outline.Save"
+            Size="@ButtonSize.Large"
+            @onclick="SaveApiKey"
+            Disabled="@isSaveDisabled">
+            Save
+        </Button>
+    </Footer>
+</Layout>
+
+@code {
+    private string? endpoint { get; set; }
+    private string? key { get; set; }
+    private bool saving { get; set; }
+    private bool isSaveDisabled => string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(key) || saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        (endpoint, key) = await SecretKeyService.GetSecretKey();
+
+        await base.OnInitializedAsync();
+    }
+
+    private async Task SaveApiKey()
+    {
+        if (isSaveDisabled)
+        {
+            return;
+        }
+
+        saving = true;
+        await SecretKeyService.SaveSecretKey(endpoint, key);
+        saving = false;
+
+        await _message.Info("Saved");
+    }
+}
+
+
